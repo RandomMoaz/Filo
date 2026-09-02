@@ -1,0 +1,16 @@
+[package]
+name = "filo-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Command-line interface for the filo file manager."
+
+[[bin]]
+name = "filo"
+path = "src/main.rs"
+
+[dependencies]
+filo-core = { path = "../filo-core" }
+clap = { version = "4.6", features = ["derive"] }
+anyhow.workspace = true
+comfy-table = "7"

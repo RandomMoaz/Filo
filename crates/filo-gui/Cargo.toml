@@ -1,0 +1,17 @@
+[package]
+name = "filo-gui"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "egui desktop interface for the filo file manager."
+
+[[bin]]
+name = "filo-gui"
+path = "src/main.rs"
+
+[dependencies]
+filo-core = { path = "../filo-core" }
+eframe = "0.36"
+egui_extras = { version = "0.36", features = ["all_loaders"] }
+rfd = "0.15"
+anyhow.workspace = true

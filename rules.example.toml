@@ -1,0 +1,44 @@
+# Example organize rules for filo.
+#   filo organize <PATH> --rules rules.example.toml [--dry-run]
+#
+# Rules are checked top to bottom; the first one that matches decides where a
+# file goes. A file that matches no rule is left where it is.
+#
+# Match fields (all optional; a rule matches only if ALL present fields match):
+#   extensions        = ["jpg", "png"]   # lowercased extension, no dot
+#   older_than_days    = 365              # file's modified time is at least this old
+#   larger_than_bytes  = 104857600        # file is at least this many bytes (100 MiB)
+#   name_regex         = "^IMG_"          # file name matches this regex
+#
+# The `into` folder may contain placeholders filled from the file:
+#   {year}   e.g. 2026      {month}  e.g. 09       {ext}  e.g. jpg
+
+[[rule]]
+match = { extensions = ["jpg", "jpeg", "png", "gif", "webp", "heic"] }
+into  = "Images"
+
+[[rule]]
+match = { extensions = ["mp4", "mov", "mkv", "avi"] }
+into  = "Videos"
+
+[[rule]]
+match = { extensions = ["mp3", "wav", "flac", "m4a"] }
+into  = "Audio"
+
+[[rule]]
+match = { extensions = ["pdf", "doc", "docx", "txt", "md", "rtf"] }
+into  = "Documents"
+
+[[rule]]
+match = { extensions = ["zip", "tar", "gz", "7z", "rar"] }
+into  = "Archives"
+
+# Anything larger than 100 MiB (that didn't match above) goes to Large/.
+[[rule]]
+match = { larger_than_bytes = 104857600 }
+into  = "Large"
+
+# Anything older than a year (that didn't match above) is archived by year.
+[[rule]]
+match = { older_than_days = 365 }
+into  = "Archive/{year}"
