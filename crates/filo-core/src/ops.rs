@@ -22,6 +22,7 @@ impl Filo {
         }
         self.record(Operation::new(OperationKind::Create {
             path: path.to_path_buf(),
+            is_dir: as_dir,
         }))
     }
 

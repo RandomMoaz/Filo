@@ -94,6 +94,63 @@ fn find_duplicates_groups_identical_files() {
 }
 
 #[test]
+fn redo_replays_an_undone_operation() {
+    let dir = tempdir().unwrap();
+    let filo = filo_in(dir.path());
+    let f = dir.path().join("hello.txt");
+
+    filo.create(&f, false).unwrap();
+    filo.undo().unwrap();
+    assert!(!f.exists());
+    filo.redo().unwrap();
+    assert!(f.exists(), "redo should recreate the file");
+}
+
+#[test]
+fn redo_recreates_a_directory_not_a_file() {
+    let dir = tempdir().unwrap();
+    let filo = filo_in(dir.path());
+    let d = dir.path().join("subdir");
+
+    filo.create(&d, true).unwrap();
+    filo.undo().unwrap();
+    filo.redo().unwrap();
+    assert!(d.is_dir(), "redo of a folder create must recreate a folder");
+}
+
+#[test]
+fn multi_step_undo_and_redo() {
+    let dir = tempdir().unwrap();
+    let filo = filo_in(dir.path());
+    let a = dir.path().join("a.txt");
+    let b = dir.path().join("b.txt");
+    let c = dir.path().join("c.txt");
+
+    filo.create(&a, false).unwrap();
+    filo.create(&b, false).unwrap();
+    filo.create(&c, false).unwrap();
+
+    assert_eq!(filo.undo_all().unwrap().len(), 3);
+    assert!(!a.exists() && !b.exists() && !c.exists());
+
+    assert_eq!(filo.redo_many(2).unwrap().len(), 2);
+    assert!(a.exists() && b.exists() && !c.exists());
+}
+
+#[test]
+fn new_action_clears_the_redo_stack() {
+    let dir = tempdir().unwrap();
+    let filo = filo_in(dir.path());
+
+    filo.create(&dir.path().join("a.txt"), false).unwrap();
+    filo.undo().unwrap();
+    assert!(filo.can_redo());
+
+    filo.create(&dir.path().join("b.txt"), false).unwrap();
+    assert!(!filo.can_redo(), "a new action clears redo");
+}
+
+#[test]
 fn bulk_rename_pattern_is_collision_checked() {
     let dir = tempdir().unwrap();
     let filo = filo_in(dir.path());

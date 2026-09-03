@@ -31,7 +31,7 @@ impl Operation {
 
     pub fn summary(&self) -> String {
         match &self.kind {
-            OperationKind::Create { path } => format!("create  {}", path.display()),
+            OperationKind::Create { path, .. } => format!("create  {}", path.display()),
             OperationKind::Delete { from, .. } => format!("delete  {}", from.display()),
             OperationKind::Move { from, to } => {
                 format!("move    {} -> {}", from.display(), to.display())
@@ -54,7 +54,13 @@ impl Operation {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum OperationKind {
-    Create { path: PathBuf },
+    /// A file or directory was created at `path`. `is_dir` records which, so
+    /// redo can recreate the right kind. (`serde(default)` keeps old logs readable.)
+    Create {
+        path: PathBuf,
+        #[serde(default)]
+        is_dir: bool,
+    },
     Delete { from: PathBuf, trashed_to: PathBuf },
     Move { from: PathBuf, to: PathBuf },
     Copy { from: PathBuf, to: PathBuf },

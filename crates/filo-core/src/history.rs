@@ -60,6 +60,14 @@ impl History {
         Ok(popped)
     }
 
+    /// Remove every entry (used to clear the redo stack after a new action).
+    pub fn clear(&self) -> Result<()> {
+        if self.path.exists() {
+            std::fs::remove_file(&self.path)?;
+        }
+        Ok(())
+    }
+
     fn rewrite(&self, ops: &[Operation]) -> Result<()> {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;

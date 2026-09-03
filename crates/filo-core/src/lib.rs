@@ -24,6 +24,7 @@ pub struct Filo {
     data_dir: PathBuf,
     trash_dir: PathBuf,
     history: History,
+    redo: History,
 }
 
 impl Filo {
@@ -36,10 +37,12 @@ impl Filo {
         std::fs::create_dir_all(&dir)?;
         let trash_dir = dir.join("trash");
         let history = History::new(dir.join("history.jsonl"));
+        let redo = History::new(dir.join("redo.jsonl"));
         Ok(Filo {
             data_dir: dir,
             trash_dir,
             history,
+            redo,
         })
     }
 
@@ -55,8 +58,21 @@ impl Filo {
         &self.history
     }
 
+    /// The redo stack (operations that have been undone).
+    pub fn redo_stack(&self) -> &History {
+        &self.redo
+    }
+
+    /// Internal accessor used by undo/redo.
+    pub(crate) fn redo_log(&self) -> &History {
+        &self.redo
+    }
+
+    /// Append a *new* operation to the change log. Doing so clears the redo
+    /// stack, because a new action invalidates anything that was undone.
     pub(crate) fn record(&self, op: Operation) -> Result<Operation> {
         self.history.append(&op)?;
+        self.redo.clear()?;
         Ok(op)
     }
 }

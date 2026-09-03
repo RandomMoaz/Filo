@@ -21,6 +21,9 @@ pub enum FiloError {
     #[error("nothing to undo")]
     NothingToUndo,
 
+    #[error("nothing to redo")]
+    NothingToRedo,
+
     #[error("invalid rename pattern: {0}")]
     BadPattern(String),
 

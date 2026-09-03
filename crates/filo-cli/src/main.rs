@@ -70,7 +70,24 @@ enum Command {
         #[arg(long)]
         delete: bool,
     },
-    Undo,
+    /// Reverse recent operations (the most recent by default).
+    Undo {
+        /// Undo this many operations.
+        #[arg(long, conflicts_with = "all")]
+        count: Option<usize>,
+        /// Undo everything on the undo stack.
+        #[arg(long)]
+        all: bool,
+    },
+    /// Re-apply operations that were undone (the most recent by default).
+    Redo {
+        /// Redo this many operations.
+        #[arg(long, conflicts_with = "all")]
+        count: Option<usize>,
+        /// Redo everything on the redo stack.
+        #[arg(long)]
+        all: bool,
+    },
     EmptyTrash,
 }
 
@@ -127,9 +144,25 @@ fn main() -> Result<()> {
             dry_run,
         } => organize(&filo, &path, by, rules, dry_run)?,
         Command::Dedupe { path, delete } => dedupe(&filo, &path, delete)?,
-        Command::Undo => {
-            let op = filo.undo()?;
-            println!("↩ undid: {}", op.summary());
+        Command::Undo { count, all } => {
+            let n = if all { usize::MAX } else { count.unwrap_or(1) };
+            let ops = filo.undo_many(n)?;
+            if ops.is_empty() {
+                println!("nothing to undo");
+            }
+            for op in ops {
+                println!("↩ undid: {}", op.summary());
+            }
+        }
+        Command::Redo { count, all } => {
+            let n = if all { usize::MAX } else { count.unwrap_or(1) };
+            let ops = filo.redo_many(n)?;
+            if ops.is_empty() {
+                println!("nothing to redo");
+            }
+            for op in ops {
+                println!("↪ redid: {}", op.summary());
+            }
         }
         Command::EmptyTrash => {
             let n = filo.empty_trash()?;

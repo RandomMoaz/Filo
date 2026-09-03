@@ -20,6 +20,9 @@ pub struct FiloApp {
 
     // Delete confirmation dialog.
     confirm_delete: bool,
+
+    // Cached "is there anything to redo?" (refreshed after each action).
+    can_redo: bool,
 }
 
 impl FiloApp {
@@ -41,6 +44,7 @@ impl FiloApp {
             dups: Vec::new(),
             show_dups: false,
             confirm_delete: false,
+            can_redo: false,
         };
         app.refresh();
         app
@@ -49,6 +53,7 @@ impl FiloApp {
     fn refresh(&mut self) {
         self.entries = filo_core::scan::list_dir(&self.cwd).unwrap_or_default();
         self.history = self.filo.history().read_all().unwrap_or_default();
+        self.can_redo = self.filo.can_redo();
         let entries = &self.entries;
         self.selected.retain(|p| entries.iter().any(|e| &e.path == p));
     }
@@ -335,9 +340,20 @@ impl FiloApp {
                 }
                 ui.separator();
 
-                if ui.button("↩ Undo").clicked() {
+                let can_undo = !self.history.is_empty();
+                if ui
+                    .add_enabled(can_undo, egui::Button::new("↩ Undo"))
+                    .clicked()
+                {
                     let res = self.filo.undo();
                     self.set_result("undo", res);
+                }
+                if ui
+                    .add_enabled(self.can_redo, egui::Button::new("↪ Redo"))
+                    .clicked()
+                {
+                    let res = self.filo.redo();
+                    self.set_result("redo", res);
                 }
             });
             ui.add_space(2.0);
