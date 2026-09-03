@@ -14,3 +14,4 @@ filo-core = { path = "../filo-core" }
 clap = { version = "4.6", features = ["derive"] }
 anyhow.workspace = true
 comfy-table = "7"
+serde_json.workspace = true

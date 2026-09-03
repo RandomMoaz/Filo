@@ -12,6 +12,6 @@ path = "src/main.rs"
 [dependencies]
 filo-core = { path = "../filo-core" }
 eframe = "0.36"
-egui_extras = { version = "0.36", features = ["all_loaders"] }
+egui_extras = "0.36"
 rfd = "0.15"
 anyhow.workspace = true

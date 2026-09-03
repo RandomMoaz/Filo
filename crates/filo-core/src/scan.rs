@@ -51,3 +51,78 @@ pub fn walk_files(dir: &Path, max_depth: Option<usize>) -> Vec<FileEntry> {
         .filter_map(|e| entry_for(e.path()).ok())
         .collect()
 }
+
+/// Directory names that hold generated or vendored files. Walking them is slow
+/// and nothing inside is worth a tidy-up suggestion.
+pub const NOISE_DIRS: [&str; 9] = [
+    ".git",
+    "target",
+    "node_modules",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".next",
+    "dist",
+    "build",
+];
+
+pub fn walk_files_skipping(dir: &Path, skip: &[&str]) -> Vec<FileEntry> {
+    WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() == 0 || !e.file_type().is_dir() {
+                return true;
+            }
+            let name = e.file_name().to_string_lossy().to_lowercase();
+            !skip.iter().any(|noise| *noise == name)
+        })
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().is_file())
+        .filter_map(|e| entry_for(e.path()).ok())
+        .collect()
+}
+
+pub fn walk_dirs_skipping(dir: &Path, skip: &[&str]) -> Vec<std::path::PathBuf> {
+    WalkDir::new(dir)
+        .into_iter()
+        .filter_entry(|e| {
+            if e.depth() == 0 || !e.file_type().is_dir() {
+                return true;
+            }
+            let name = e.file_name().to_string_lossy().to_lowercase();
+            !skip.iter().any(|noise| *noise == name)
+        })
+        .filter_map(|e| e.ok())
+        .filter(|e| e.depth() > 0 && e.file_type().is_dir())
+        .map(|e| e.path().to_path_buf())
+        .collect()
+}
+
+pub fn is_empty_dir(dir: &Path) -> bool {
+    std::fs::read_dir(dir)
+        .map(|mut it| it.next().is_none())
+        .unwrap_or(false)
+}
+
+/// Files that mark a directory as the root of a project or repository.
+/// Organizing such a folder scatters the very files its tooling looks for.
+const PROJECT_MARKERS: [&str; 10] = [
+    ".git",
+    "Cargo.toml",
+    "package.json",
+    "pyproject.toml",
+    "go.mod",
+    "pom.xml",
+    "build.gradle",
+    "Gemfile",
+    "composer.json",
+    "CMakeLists.txt",
+];
+
+/// The marker that makes `dir` look like a project root, if any.
+pub fn project_marker(dir: &Path) -> Option<&'static str> {
+    PROJECT_MARKERS
+        .iter()
+        .find(|marker| dir.join(marker).exists())
+        .copied()
+}

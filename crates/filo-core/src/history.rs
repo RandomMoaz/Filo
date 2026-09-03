@@ -54,8 +54,35 @@ impl History {
             .collect())
     }
 
+    /// The newest entry. Parses backwards from the end and stops at the first
+    /// readable line, so a long log costs one line of JSON, not all of them.
     pub fn last(&self) -> Result<Option<Operation>> {
-        Ok(self.read_all()?.pop())
+        Ok(self
+            .read_lines()?
+            .iter()
+            .rev()
+            .find_map(|line| serde_json::from_str::<Operation>(line).ok()))
+    }
+
+    /// The most recent `limit` entries, oldest first. Only those lines are
+    /// parsed — a display that shows the tail of the log should use this
+    /// rather than reading the whole history back every time.
+    pub fn read_recent(&self, limit: usize) -> Result<Vec<Operation>> {
+        let lines = self.read_lines()?;
+        let start = lines.len().saturating_sub(limit);
+        Ok(lines[start..]
+            .iter()
+            .filter_map(|line| serde_json::from_str::<Operation>(line).ok())
+            .collect())
+    }
+
+    /// How many entries the log holds, without parsing any of them.
+    pub fn len(&self) -> Result<usize> {
+        Ok(self.read_lines()?.len())
+    }
+
+    pub fn is_empty(&self) -> Result<bool> {
+        Ok(self.len()? == 0)
     }
 
     pub fn pop(&self) -> Result<Option<Operation>> {

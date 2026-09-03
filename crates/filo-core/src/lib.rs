@@ -4,6 +4,7 @@ pub mod history;
 pub mod model;
 pub mod ops;
 pub mod organize;
+pub mod recommend;
 pub mod rename;
 pub mod rules;
 pub mod scan;
@@ -15,6 +16,10 @@ pub use error::{FiloError, Result};
 pub use history::History;
 pub use model::{FileEntry, Operation, OperationKind};
 pub use organize::OrganizeStrategy;
+pub use recommend::{
+    Advice, AdviceConfig, CleanupKind, CleanupSuggestion, Grouping, OrganizeSuggestion, Phase,
+    Safety, SubfolderAdvice,
+};
 pub use rename::{RenamePlan, RenameSpec};
 
 use directories::ProjectDirs;

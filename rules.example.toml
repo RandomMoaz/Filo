@@ -42,3 +42,24 @@ into  = "Large"
 [[rule]]
 match = { older_than_days = 365 }
 into  = "Archive/{year}"
+
+# ---------------------------------------------------------------------------
+# Thresholds and name lists used by `filo suggest`. Drop this section into a
+# `filo.toml` beside the folder you scan (or pass --config) to tune it. Every
+# key is optional; anything left out keeps its default.
+# ---------------------------------------------------------------------------
+[advice]
+# A file at or above this size counts as "large" (default 100 MB).
+large_file_bytes = 104857600
+# Untouched for at least this many days counts as "stale".
+stale_days = 180
+# A subfolder with fewer files than this is left out of the per-folder plans.
+min_files_to_organize = 4
+
+junk_names = ["thumbs.db", ".ds_store", "desktop.ini", ".localized"]
+junk_extensions = ["crdownload", "part", "partial", "tmp", "temp"]
+review_extensions = ["bak", "old", "log", "swp"]
+keep_empty_names = [".gitkeep", ".keep", "__init__.py", "py.typed", ".nojekyll"]
+installer_extensions = ["exe", "msi", "dmg", "pkg", "deb", "rpm", "appimage"]
+archive_extensions = ["zip", "rar", "7z", "tar", "gz", "tgz", "bz2", "xz"]
+skip_dirs = [".git", "target", "node_modules", ".venv", "venv", "__pycache__", ".next", "dist", "build"]

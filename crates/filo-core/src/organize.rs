@@ -9,11 +9,12 @@ pub enum OrganizeStrategy {
     Extension,
     Date,
     Size,
+    ExtensionThenDate,
     Rules(RuleSet),
 }
 
 impl OrganizeStrategy {
-    fn destination_for(&self, entry: &FileEntry) -> Option<String> {
+    pub(crate) fn destination_for(&self, entry: &FileEntry) -> Option<String> {
         match self {
             OrganizeStrategy::Extension => Some(match &entry.extension {
                 Some(ext) if !ext.is_empty() => ext.clone(),
@@ -32,6 +33,17 @@ impl OrganizeStrategy {
                 }
                 .to_string(),
             ),
+            OrganizeStrategy::ExtensionThenDate => {
+                let ext = match &entry.extension {
+                    Some(ext) if !ext.is_empty() => ext.clone(),
+                    _ => "no_extension".to_string(),
+                };
+                Some(format!(
+                    "{ext}/{}-{:02}",
+                    entry.modified.year(),
+                    entry.modified.month()
+                ))
+            }
             OrganizeStrategy::Rules(set) => set.destination_for(entry),
         }
     }
