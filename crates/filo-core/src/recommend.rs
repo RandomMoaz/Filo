@@ -12,7 +12,7 @@ const PREVIEW_FOLDERS: usize = 6;
 const PREVIEW_EXAMPLES: usize = 3;
 
 /// Everything the analysis treats as a threshold or a name list, so a machine
-/// or a project can tune it without a rebuild. See [`AdviceConfig::from_toml_file`].
+
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(default)]
 pub struct AdviceConfig {
@@ -64,7 +64,6 @@ impl Default for AdviceConfig {
 
 impl AdviceConfig {
     /// Read an `[advice]` table from a TOML file. Any key left out keeps its
-    /// default, so a config only has to name what it changes.
     pub fn from_toml_file(path: &Path) -> Result<Self> {
         #[derive(Deserialize, Default)]
         struct File {
@@ -248,13 +247,7 @@ impl Advice {
     }
 }
 
-/// Rank the built-in grouping strategies for `entries`, best first.
-///
-/// Each strategy is scored `balance * coverage`, both in `0..=1`:
-/// `balance` is the normalized Shannon entropy of the resulting folder sizes
-/// (1.0 when every folder gets the same share), and `coverage` is the share of
-/// files that land in a folder holding at least two files — a folder built for
-/// a single file is clutter, not organization.
+
 pub fn rank_groupings(entries: &[FileEntry]) -> Vec<OrganizeSuggestion> {
     let mut ranked: Vec<OrganizeSuggestion> = Grouping::ALL
         .iter()
@@ -365,8 +358,7 @@ fn extension_of(entry: &FileEntry) -> String {
     entry.extension.clone().unwrap_or_default()
 }
 
-/// Strip a trailing copy marker: `report (1).pdf` and `report - Copy.pdf`
-/// both reduce to `report.pdf`.
+
 fn original_name(name: &str) -> Option<String> {
     let path = Path::new(name);
     let stem = path.file_stem()?.to_string_lossy();
@@ -403,9 +395,6 @@ fn looks_like_a_copy(name: &str) -> bool {
     original_name(name).is_some()
 }
 
-/// Of a set of identical files, decide which one to keep: never a file whose
-/// name marks it as a copy, then the shortest name, then the earliest path.
-/// Sorting alone would keep `invoice (1).pdf` over `invoice.pdf`.
 fn keeper_of(paths: &[PathBuf]) -> usize {
     paths
         .iter()
@@ -479,12 +468,6 @@ impl<'a> Detector<'a> {
 }
 
 impl Filo {
-    /// Look at `dir` and work out how it would best be tidied: which grouping
-    /// suits the files that are actually there, and what is worth deleting.
-    ///
-    /// Generated and vendored folders (`target`, `node_modules`, `.git`, …) are
-    /// skipped — they dominate the scan time and nothing in them is worth a
-    /// tidy-up suggestion. Use [`Filo::advise_everything`] to include them.
     pub fn advise(&self, dir: &Path) -> Result<Advice> {
         self.advise_with(dir, &AdviceConfig::discover(dir), true, &mut |_, _| {})
     }
@@ -557,9 +540,7 @@ impl Filo {
         let mut out = Vec::new();
 
         // Every path a suggestion claims is recorded here, so no file is ever
-        // proposed for deletion twice. Two suggestions covering both halves of
-        // a duplicate pair would, if both were applied, delete the content
-        // entirely.
+      
         let mut claimed: HashSet<PathBuf> = HashSet::new();
 
         let groups = dedupe::find_duplicates_in(below);
