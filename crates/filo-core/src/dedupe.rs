@@ -7,8 +7,6 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 
-/// Files are first compared on their opening bytes only. Two files that differ
-/// early — the common case — never get read past this.
 const HEAD_BYTES: u64 = 16 * 1024;
 const MAX_HASH_THREADS: usize = 8;
 
@@ -38,8 +36,7 @@ fn hash_file(path: &Path, limit: Option<u64>) -> Result<String> {
     Ok(format!("{:x}", hasher.finalize()))
 }
 
-/// Hash a batch across a few threads. Hashing is CPU- and IO-bound in equal
-/// measure, so even a handful of workers makes a large difference.
+
 fn hash_many(paths: &[PathBuf], limit: Option<u64>) -> Vec<Option<String>> {
     if paths.len() < 2 {
         return paths.iter().map(|p| hash_file(p, limit).ok()).collect();
@@ -89,12 +86,6 @@ pub fn find_duplicates(dir: &Path) -> Result<Vec<DuplicateGroup>> {
     Ok(find_duplicates_in(&scan::walk_files(dir, None)))
 }
 
-/// Group already-scanned files by identical content, so callers that have
-/// walked the tree for their own reasons do not have to walk it again.
-///
-/// Three passes, each cheaper than the one it feeds: bucket by size, then by a
-/// hash of the opening bytes, and only then hash the surviving candidates in
-/// full. Empty files are skipped — they all "match", which is useless.
 pub fn find_duplicates_in(entries: &[FileEntry]) -> Vec<DuplicateGroup> {
     let mut by_size: HashMap<u64, Vec<PathBuf>> = HashMap::new();
     for entry in entries {
