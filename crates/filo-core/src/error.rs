@@ -21,11 +21,17 @@ pub enum FiloError {
     #[error("nothing to undo")]
     NothingToUndo,
 
+    #[error("cannot be undone: {0}")]
+    NotReversible(String),
+
     #[error("nothing to redo")]
     NothingToRedo,
 
     #[error("invalid rename pattern: {0}")]
     BadPattern(String),
+
+    #[error("{0}: {1}")]
+    PathIo(String, std::io::Error),
 
     #[error("could not determine a data directory for filo")]
     NoDataDir,

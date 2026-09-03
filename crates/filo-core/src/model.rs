@@ -33,6 +33,9 @@ impl Operation {
         match &self.kind {
             OperationKind::Create { path, .. } => format!("create  {}", path.display()),
             OperationKind::Delete { from, .. } => format!("delete  {}", from.display()),
+            OperationKind::DeleteMany { batch } => {
+                format!("delete  {} item(s)", batch.len())
+            }
             OperationKind::Move { from, to } => {
                 format!("move    {} -> {}", from.display(), to.display())
             }
@@ -62,6 +65,7 @@ pub enum OperationKind {
         is_dir: bool,
     },
     Delete { from: PathBuf, trashed_to: PathBuf },
+    DeleteMany { batch: Vec<(PathBuf, PathBuf)> },
     Move { from: PathBuf, to: PathBuf },
     Copy { from: PathBuf, to: PathBuf },
     Rename { from: PathBuf, to: PathBuf },

@@ -1,14 +1,27 @@
 use crate::error::{FiloError, Result};
 use std::path::Path;
 
+pub fn make_parent_dir(dst: &Path) -> Result<()> {
+    if let Some(parent) = dst.parent() {
+        if parent.as_os_str().is_empty() {
+            return Ok(());
+        }
+        std::fs::create_dir_all(parent).map_err(|e| {
+            FiloError::PathIo(
+                format!("could not create the folder {}", parent.display()),
+                e,
+            )
+        })?;
+    }
+    Ok(())
+}
+
 pub fn copy_path(src: &Path, dst: &Path) -> Result<()> {
     let meta = std::fs::metadata(src)?;
     if meta.is_dir() {
         copy_dir_all(src, dst)
     } else {
-        if let Some(parent) = dst.parent() {
-            std::fs::create_dir_all(parent)?;
-        }
+        make_parent_dir(dst)?;
         std::fs::copy(src, dst)?;
         Ok(())
     }
@@ -30,9 +43,7 @@ fn copy_dir_all(src: &Path, dst: &Path) -> Result<()> {
 }
 
 pub fn move_path(src: &Path, dst: &Path) -> Result<()> {
-    if let Some(parent) = dst.parent() {
-        std::fs::create_dir_all(parent)?;
-    }
+    make_parent_dir(dst)?;
     match std::fs::rename(src, dst) {
         Ok(()) => Ok(()),
         Err(_) => {
@@ -59,4 +70,11 @@ pub fn require_exists(path: &Path) -> Result<()> {
     } else {
         Err(FiloError::NotFound(path.to_path_buf()))
     }
+}
+
+pub fn move_path_no_clobber(src: &Path, dst: &Path) -> Result<()> {
+    if dst.exists() {
+        return Err(FiloError::WouldOverwrite(dst.to_path_buf()));
+    }
+    move_path(src, dst)
 }

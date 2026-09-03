@@ -15,6 +15,26 @@ impl Filo {
     /// Reverse the most recent operation. Returns the operation that was undone.
     pub fn undo(&self) -> Result<Operation> {
         let op = self.history().last()?.ok_or(FiloError::NothingToUndo)?;
+        // An entry whose trashed copy is gone (the trash was emptied) can never
+        // be reversed. Drop it instead of letting it block the whole stack.
+        let missing = match &op.kind {
+            OperationKind::Delete { from, trashed_to } if !trashed_to.exists() => {
+                Some(from.display().to_string())
+            }
+            OperationKind::DeleteMany { batch }
+                if batch.iter().any(|(_, trashed_to)| !trashed_to.exists()) =>
+            {
+                Some(format!("{} item(s)", batch.len()))
+            }
+            _ => None,
+        };
+        if let Some(what) = missing {
+            self.history().pop()?;
+            return Err(FiloError::NotReversible(format!(
+                "{} is no longer in the trash",
+                what
+            )));
+        }
         self.reverse(&op)?;
         // Move it from the undo stack to the redo stack (only after success).
         self.history().pop()?;
@@ -41,6 +61,7 @@ impl Filo {
             match self.undo() {
                 Ok(op) => done.push(op),
                 Err(FiloError::NothingToUndo) => break,
+                Err(FiloError::NotReversible(_)) => continue,
                 Err(e) => return Err(e),
             }
         }
@@ -93,6 +114,12 @@ impl Filo {
                 util::require_exists(trashed_to)?;
                 util::move_path(trashed_to, from)?;
             }
+            OperationKind::DeleteMany { batch } => {
+                for (from, trashed_to) in batch.iter().rev() {
+                    util::require_exists(trashed_to)?;
+                    util::move_path(trashed_to, from)?;
+                }
+            }
             OperationKind::Move { from, to } => {
                 util::move_path(to, from)?;
             }
@@ -110,11 +137,11 @@ impl Filo {
                         util::move_path(to, from)?;
                     }
                 }
-                // Remove any destination folders left empty by the reversal.
-                for (_, to) in batch {
-                    if let Some(dir) = to.parent() {
-                        let _ = std::fs::remove_dir(dir); // no-op if not empty
-                    }
+                // Remove any destination folders left empty by the reversal,
+                // including nested ones like `2026/09`, up to (not including)
+                // the directory that was organized.
+                for (from, to) in batch {
+                    remove_empty_dirs_up_to(to.parent(), from.parent());
                 }
             }
         }
@@ -139,6 +166,11 @@ impl Filo {
             OperationKind::Delete { from, trashed_to } => {
                 util::move_path(from, trashed_to)?;
             }
+            OperationKind::DeleteMany { batch } => {
+                for (from, trashed_to) in batch {
+                    util::move_path(from, trashed_to)?;
+                }
+            }
             OperationKind::Move { from, to } => {
                 util::move_path(from, to)?;
             }
@@ -155,5 +187,22 @@ impl Filo {
             }
         }
         Ok(())
+    }
+}
+
+fn remove_empty_dirs_up_to(start: Option<&std::path::Path>, root: Option<&std::path::Path>) {
+    let root = match root {
+        Some(r) => r,
+        None => return,
+    };
+    let mut current = start.map(|p| p.to_path_buf());
+    while let Some(dir) = current {
+        if dir == root || !dir.starts_with(root) {
+            return;
+        }
+        if std::fs::remove_dir(&dir).is_err() {
+            return;
+        }
+        current = dir.parent().map(|p| p.to_path_buf());
     }
 }

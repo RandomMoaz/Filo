@@ -30,23 +30,28 @@ impl History {
         Ok(())
     }
 
-    pub fn read_all(&self) -> Result<Vec<Operation>> {
+    fn read_lines(&self) -> Result<Vec<String>> {
         if !self.path.exists() {
             return Ok(Vec::new());
         }
         let file = File::open(&self.path)?;
-        let reader = BufReader::new(file);
-        let mut ops = Vec::new();
-        for line in reader.lines() {
+        let mut lines = Vec::new();
+        for line in BufReader::new(file).lines() {
             let line = line?;
             if line.trim().is_empty() {
                 continue;
             }
-            if let Ok(op) = serde_json::from_str::<Operation>(&line) {
-                ops.push(op);
-            }
+            lines.push(line);
         }
-        Ok(ops)
+        Ok(lines)
+    }
+
+    pub fn read_all(&self) -> Result<Vec<Operation>> {
+        Ok(self
+            .read_lines()?
+            .iter()
+            .filter_map(|line| serde_json::from_str::<Operation>(line).ok())
+            .collect())
     }
 
     pub fn last(&self) -> Result<Option<Operation>> {
@@ -54,13 +59,20 @@ impl History {
     }
 
     pub fn pop(&self) -> Result<Option<Operation>> {
-        let mut ops = self.read_all()?;
-        let popped = ops.pop();
-        self.rewrite(&ops)?;
-        Ok(popped)
+        let mut lines = self.read_lines()?;
+        let idx = match lines
+            .iter()
+            .rposition(|line| serde_json::from_str::<Operation>(line).is_ok())
+        {
+            Some(i) => i,
+            None => return Ok(None),
+        };
+        let popped: Operation = serde_json::from_str(&lines[idx])?;
+        lines.remove(idx);
+        self.rewrite(&lines)?;
+        Ok(Some(popped))
     }
 
-    /// Remove every entry (used to clear the redo stack after a new action).
     pub fn clear(&self) -> Result<()> {
         if self.path.exists() {
             std::fs::remove_file(&self.path)?;
@@ -68,13 +80,13 @@ impl History {
         Ok(())
     }
 
-    fn rewrite(&self, ops: &[Operation]) -> Result<()> {
+    fn rewrite(&self, lines: &[String]) -> Result<()> {
         if let Some(parent) = self.path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let mut file = File::create(&self.path)?;
-        for op in ops {
-            writeln!(file, "{}", serde_json::to_string(op)?)?;
+        for line in lines {
+            writeln!(file, "{}", line)?;
         }
         Ok(())
     }

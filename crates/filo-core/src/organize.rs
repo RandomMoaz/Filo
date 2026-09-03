@@ -47,7 +47,7 @@ impl Filo {
             if let Some(folder) = strategy.destination_for(&entry) {
                 let dest_dir = dir.join(&folder);
                 let to = dest_dir.join(&entry.name);
-                if to == entry.path {
+                if to == entry.path || to.exists() {
                     continue;
                 }
                 batch.push((entry.path.clone(), to));
@@ -58,9 +58,18 @@ impl Filo {
 
     pub fn organize(&self, dir: &Path, strategy: &OrganizeStrategy) -> Result<Operation> {
         let batch = self.plan_organize(dir, strategy)?;
-        for (from, to) in &batch {
-            util::move_path(from, to)?;
+        let mut done = Vec::new();
+        for (from, to) in batch {
+            match util::move_path_no_clobber(&from, &to) {
+                Ok(()) => done.push((from, to)),
+                Err(e) => {
+                    if !done.is_empty() {
+                        self.record(Operation::new(OperationKind::Organize { batch: done }))?;
+                    }
+                    return Err(e);
+                }
+            }
         }
-        self.record(Operation::new(OperationKind::Organize { batch }))
+        self.record(Operation::new(OperationKind::Organize { batch: done }))
     }
 }

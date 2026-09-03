@@ -163,15 +163,16 @@ impl FiloApp {
             });
 
         if delete_extras {
-            let mut trashed = 0;
-            for g in &self.dups {
-                for p in g.paths.iter().skip(1) {
-                    if self.filo.delete(p, false).is_ok() {
-                        trashed += 1;
-                    }
-                }
-            }
-            self.status = format!("✓ moved {trashed} duplicate file(s) to trash");
+            let extras: Vec<PathBuf> = self
+                .dups
+                .iter()
+                .flat_map(|g| g.paths.iter().skip(1).cloned())
+                .collect();
+            let n = extras.len();
+            self.status = match self.filo.delete_many(&extras) {
+                Ok(_) => format!("✓ moved {n} duplicate file(s) to trash"),
+                Err(e) => format!("✗ dedupe delete: {e}"),
+            };
             self.dups.clear();
             open = false;
             self.refresh();
@@ -232,19 +233,13 @@ impl FiloApp {
             });
 
         if do_delete {
-            let mut n = 0;
-            let mut last = Ok(());
-            for p in &paths {
-                match self.filo.delete(p, false) {
-                    Ok(_) => n += 1,
-                    Err(e) => last = Err(e),
-                }
-            }
+            let n = paths.len();
+            let result = self.filo.delete_many(&paths);
             self.selected.clear();
             self.confirm_delete = false;
-            self.status = match last {
-                Ok(()) => format!("✓ moved {n} item(s) to trash"),
-                Err(e) => format!("✗ delete (moved {n} before error): {e}"),
+            self.status = match result {
+                Ok(_) => format!("✓ moved {n} item(s) to trash"),
+                Err(e) => format!("✗ delete: {e}"),
             };
             self.refresh();
         }

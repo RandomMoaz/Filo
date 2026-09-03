@@ -33,17 +33,45 @@ impl Filo {
             .map(|s| s.to_owned())
             .unwrap_or_else(|| "unnamed".into());
         let target: PathBuf = self.trash_dir().join(Uuid::new_v4().to_string()).join(&name);
-        util::move_path(path, &target)?;
 
-        let op = self.record(Operation::new(OperationKind::Delete {
+        let op = Operation::new(OperationKind::Delete {
             from: path.to_path_buf(),
             trashed_to: target.clone(),
-        }))?;
+        });
 
         if permanent {
-            let _ = util::remove_path(&target);
+            util::remove_path(path)?;
+            self.redo_log().clear()?;
+            return Ok(op);
         }
-        Ok(op)
+
+        util::move_path(path, &target)?;
+        self.record(op)
+    }
+
+    pub fn delete_many(&self, paths: &[PathBuf]) -> Result<Operation> {
+        let mut batch = Vec::new();
+        for path in paths {
+            if let Err(e) = util::require_exists(path) {
+                if !batch.is_empty() {
+                    self.record(Operation::new(OperationKind::DeleteMany { batch }))?;
+                }
+                return Err(e);
+            }
+            let name = path
+                .file_name()
+                .map(|s| s.to_owned())
+                .unwrap_or_else(|| "unnamed".into());
+            let target: PathBuf = self.trash_dir().join(Uuid::new_v4().to_string()).join(&name);
+            if let Err(e) = util::move_path(path, &target) {
+                if !batch.is_empty() {
+                    self.record(Operation::new(OperationKind::DeleteMany { batch }))?;
+                }
+                return Err(e);
+            }
+            batch.push((path.clone(), target));
+        }
+        self.record(Operation::new(OperationKind::DeleteMany { batch }))
     }
 
     pub fn add(&self, sources: &[PathBuf], dest_dir: &Path, move_them: bool) -> Result<Vec<Operation>> {

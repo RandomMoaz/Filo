@@ -2,8 +2,9 @@ use crate::error::{FiloError, Result};
 use crate::model::{Operation, OperationKind};
 use crate::{scan, util, Filo};
 use serde::Serialize;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct RenamePlan {
@@ -44,7 +45,11 @@ impl Filo {
                         .replace("{name}", &stem)
                         .replace("{ext}", &ext)
                         .replace("{date}", &entry.modified.format("%Y%m%d").to_string());
-                    if !ext.is_empty() && !name.contains(&ext) && !tpl.contains("{ext}") {
+                    let suffix = format!(".{}", ext.to_lowercase());
+                    if !ext.is_empty()
+                        && !name.to_lowercase().ends_with(&suffix)
+                        && !tpl.contains("{ext}")
+                    {
                         name = format!("{}.{}", name, ext);
                     }
                     name
@@ -65,25 +70,48 @@ impl Filo {
             });
         }
 
-        check_collisions(dir, &plans)?;
+        check_collisions(&plans)?;
         Ok(plans)
     }
 
     pub fn bulk_rename(&self, dir: &Path, spec: &RenameSpec) -> Result<Vec<Operation>> {
         let plans = self.plan_bulk_rename(dir, spec)?;
+        let targets: HashSet<PathBuf> = plans.iter().map(|p| p.to.clone()).collect();
+
+        let mut staged: HashMap<PathBuf, PathBuf> = HashMap::new();
+        for plan in &plans {
+            if targets.contains(&plan.from) {
+                let temp = dir.join(format!(".filo-rename-{}", Uuid::new_v4()));
+                util::move_path(&plan.from, &temp)?;
+                staged.insert(plan.from.clone(), temp);
+            }
+        }
+
         let mut ops = Vec::new();
-        for plan in plans {
-            util::move_path(&plan.from, &plan.to)?;
+        for plan in &plans {
+            let current = staged
+                .get(&plan.from)
+                .cloned()
+                .unwrap_or_else(|| plan.from.clone());
+            if let Err(e) = util::move_path_no_clobber(&current, &plan.to) {
+                for (from, temp) in &staged {
+                    if temp.exists() {
+                        let _ = util::move_path(temp, from);
+                    }
+                }
+                return Err(e);
+            }
+            staged.remove(&plan.from);
             ops.push(self.record(Operation::new(OperationKind::Rename {
-                from: plan.from,
-                to: plan.to,
+                from: plan.from.clone(),
+                to: plan.to.clone(),
             }))?);
         }
         Ok(ops)
     }
 }
 
-fn check_collisions(dir: &Path, plans: &[RenamePlan]) -> Result<()> {
+fn check_collisions(plans: &[RenamePlan]) -> Result<()> {
     let sources: HashSet<PathBuf> = plans.iter().map(|p| p.from.clone()).collect();
     let mut targets: HashSet<PathBuf> = HashSet::new();
     for plan in plans {
@@ -93,7 +121,6 @@ fn check_collisions(dir: &Path, plans: &[RenamePlan]) -> Result<()> {
         if plan.to.exists() && !sources.contains(&plan.to) {
             return Err(FiloError::NameCollision(plan.to.clone()));
         }
-        let _ = dir;
     }
     Ok(())
 }
