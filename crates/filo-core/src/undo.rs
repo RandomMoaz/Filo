@@ -1,12 +1,3 @@
-//! Undo & redo. Every `OperationKind` stores what it needs to be reversed
-//! (undo) or re-played (redo), so each direction is a simple match.
-//!
-//! Model: the change log (`history`) is the undo stack; a separate `redo` stack
-//! holds operations that have been undone. Undoing pops from history, reverses
-//! it, and pushes it onto redo. Redoing pops from redo, re-applies it, and
-//! pushes it back onto history. Performing any *new* operation clears the redo
-//! stack (standard editor semantics) — that happens in `Filo::record`.
-
 use crate::error::{FiloError, Result};
 use crate::model::{Operation, OperationKind};
 use crate::{util, Filo};
@@ -42,19 +33,15 @@ impl Filo {
         Ok(op)
     }
 
-    /// Re-apply the most recently undone operation. Returns the redone operation.
+    
     pub fn redo(&self) -> Result<Operation> {
         let op = self.redo_log().last()?.ok_or(FiloError::NothingToRedo)?;
         self.apply(&op)?;
-        // Move it from the redo stack back onto the undo stack. Note: we append
-        // directly (NOT via `record`) so the rest of the redo stack is preserved.
+        
         self.redo_log().pop()?;
         self.history().append(&op)?;
         Ok(op)
     }
-
-    /// Undo up to `count` operations, stopping early if there is nothing left.
-    /// Returns the operations undone, in the order they were undone.
     pub fn undo_many(&self, count: usize) -> Result<Vec<Operation>> {
         let mut done = Vec::new();
         for _ in 0..count {
@@ -138,8 +125,7 @@ impl Filo {
                     }
                 }
                 // Remove any destination folders left empty by the reversal,
-                // including nested ones like `2026/09`, up to (not including)
-                // the directory that was organized.
+              
                 for (from, to) in batch {
                     remove_empty_dirs_up_to(to.parent(), from.parent());
                 }
