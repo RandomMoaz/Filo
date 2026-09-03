@@ -17,6 +17,9 @@ pub struct FiloApp {
     scanning: bool,
     dups: Vec<DuplicateGroup>,
     show_dups: bool,
+
+    // Delete confirmation dialog.
+    confirm_delete: bool,
 }
 
 impl FiloApp {
@@ -37,6 +40,7 @@ impl FiloApp {
             scanning: false,
             dups: Vec::new(),
             show_dups: false,
+            confirm_delete: false,
         };
         app.refresh();
         app
@@ -169,6 +173,80 @@ impl FiloApp {
         }
         self.show_dups = open;
     }
+
+    /// A modal that lists exactly which items will be deleted, before doing it.
+    fn confirm_delete_dialog(&mut self, ctx: &egui::Context) {
+        if !self.confirm_delete {
+            return;
+        }
+        // Snapshot the current selection, sorted, so the list is stable & readable.
+        let mut paths: Vec<PathBuf> = self.selected.iter().cloned().collect();
+        paths.sort();
+
+        if paths.is_empty() {
+            self.confirm_delete = false;
+            return;
+        }
+
+        let mut do_delete = false;
+        let mut cancel = false;
+        egui::Window::new("Confirm delete")
+            .collapsible(false)
+            .resizable(true)
+            .default_size([460.0, 320.0])
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                ui.label(format!(
+                    "Move these {} item(s) to the trash? You can undo this afterwards.",
+                    paths.len()
+                ));
+                ui.separator();
+                egui::ScrollArea::vertical()
+                    .max_height(200.0)
+                    .show(ui, |ui| {
+                        for p in &paths {
+                            let name = p
+                                .file_name()
+                                .map(|s| s.to_string_lossy().into_owned())
+                                .unwrap_or_else(|| p.display().to_string());
+                            ui.label(RichText::new(name).monospace());
+                        }
+                    });
+                ui.separator();
+                ui.horizontal(|ui| {
+                    if ui.button("Cancel").clicked() {
+                        cancel = true;
+                    }
+                    if ui
+                        .button(RichText::new("🗑 Delete").color(Color32::from_rgb(220, 80, 80)))
+                        .clicked()
+                    {
+                        do_delete = true;
+                    }
+                });
+            });
+
+        if do_delete {
+            let mut n = 0;
+            let mut last = Ok(());
+            for p in &paths {
+                match self.filo.delete(p, false) {
+                    Ok(_) => n += 1,
+                    Err(e) => last = Err(e),
+                }
+            }
+            self.selected.clear();
+            self.confirm_delete = false;
+            self.status = match last {
+                Ok(()) => format!("✓ moved {n} item(s) to trash"),
+                Err(e) => format!("✗ delete (moved {n} before error): {e}"),
+            };
+            self.refresh();
+        }
+        if cancel {
+            self.confirm_delete = false;
+        }
+    }
 }
 
 impl eframe::App for FiloApp {
@@ -180,6 +258,7 @@ impl eframe::App for FiloApp {
         self.history_panel(ui);
         self.file_table(ui);
         self.duplicates_window(&ctx);
+        self.confirm_delete_dialog(&ctx);
     }
 }
 
@@ -220,19 +299,23 @@ impl FiloApp {
                 ui.separator();
 
                 let has_sel = !self.selected.is_empty();
+                if ui.button("☑ Select all").clicked() {
+                    self.selected = self.entries.iter().map(|e| e.path.clone()).collect();
+                }
                 if ui
-                    .add_enabled(has_sel, egui::Button::new("🗑 Delete"))
+                    .add_enabled(has_sel, egui::Button::new("☐ Clear"))
                     .clicked()
                 {
-                    let paths: Vec<PathBuf> = self.selected.iter().cloned().collect();
-                    let mut last = Ok(());
-                    for p in paths {
-                        if let Err(e) = self.filo.delete(&p, false) {
-                            last = Err(e);
-                        }
-                    }
                     self.selected.clear();
-                    self.set_result("deleted selection (to trash)", last);
+                }
+                if ui
+                    .add_enabled(
+                        has_sel,
+                        egui::Button::new(format!("🗑 Delete ({})", self.selected.len())),
+                    )
+                    .clicked()
+                {
+                    self.confirm_delete = true;
                 }
                 ui.separator();
 
@@ -349,10 +432,17 @@ impl FiloApp {
                             row.col(|ui| {
                                 let icon = if entry.is_dir { "📁" } else { "📄" };
                                 let label = format!("{icon} {}", entry.name);
-                                if ui.selectable_label(is_sel, label).double_clicked()
-                                    && entry.is_dir
-                                {
+                                let resp = ui
+                                    .selectable_label(is_sel, label)
+                                    .on_hover_text(if entry.is_dir {
+                                        "Click to select · double-click to open"
+                                    } else {
+                                        "Click to select"
+                                    });
+                                if resp.double_clicked() && entry.is_dir {
                                     navigate = Some(entry.path.clone());
+                                } else if resp.clicked() {
+                                    toggle = Some(entry.path.clone());
                                 }
                             });
                             row.col(|ui| {
